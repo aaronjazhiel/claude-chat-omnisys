@@ -92,8 +92,8 @@ tools = [
 ]
 
 COMANDOS_PERMITIDOS = ["date", "TZ=", "echo", "cal", "whoami", "uname", "python3 -c"]
-MAX_CHARS = 50000
-CHUNK_SIZE = 50000
+MAX_CHARS = 30000
+CHUNK_SIZE = 30000
 
 
 def github_headers():
@@ -156,7 +156,7 @@ def ejecutar_tool(name, inputs):
             for p in paths:
                 contenido = leer_archivo_github(p)
                 # Limitar cada archivo a 15K cuando se leen múltiples
-                resultados[p] = contenido[:15000] + (f"\n--- TRUNCADO a 15K de {len(contenido)} chars ---" if len(contenido) > 15000 else "")
+                resultados[p] = contenido[:10000] + (f"\n--- TRUNCADO a 10K de {len(contenido)} chars ---" if len(contenido) > 10000 else "")
             return json.dumps(resultados, ensure_ascii=False)
 
         elif name == "buscar_codigo":
@@ -256,15 +256,9 @@ def consultar(pregunta, session_id="default"):
 
     except anthropic.RateLimitError:
         historial.pop()
-        # Compactar agresivamente e intentar de nuevo
         compactar_historial(historial)
-        if len(historial) > 6:
-            recortado = historial[-6:]
-            while recortado and recortado[0]["role"] != "user":
-                recortado.pop(0)
-            historial.clear()
-            historial.extend(recortado)
-        return {"respuesta": "La conversacion acumulo mucho contexto. Se limpio el historial automaticamente. Por favor, repite tu pregunta.", "archivos": [], "tools": []}
+        historial.clear()
+        return {"respuesta": "Se alcanzo el limite de tokens por minuto. El historial se limpio. Espera unos segundos y repite tu pregunta.", "archivos": [], "tools": []}
     except Exception as e:
         historial.pop()
         return {"respuesta": f"Error: {e}", "archivos": [], "tools": []}
