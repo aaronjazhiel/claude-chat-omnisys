@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
-from chat_claude import consultar
+from chat_claude import consultar, limpiar_sesion
 import generar_docx
 import os
 
@@ -24,6 +24,11 @@ def chat():
         })
     except Exception as e:
         return jsonify({'respuesta': None, 'archivos': [], 'tools': [], 'error': str(e)})
+
+@app.route('/nueva-sesion', methods=['POST'])
+def nueva_sesion():
+    limpiar_sesion()
+    return jsonify({'ok': True})
 
 @app.route('/generar-doc', methods=['POST'])
 def generar_doc():

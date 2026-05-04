@@ -22,6 +22,8 @@
         .logo { display: flex; align-items: center; gap: 0.75rem; color: white; font-weight: 700; font-size: 1.1rem; }
         .logo img { height: 28px; }
         .logo .tag { background: var(--omnisys-accent); color: white; font-size: 0.6rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-weight: 600; }
+        .new-chat-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 0.35rem 0.75rem; border-radius: 8px; font-size: 0.75rem; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
+        .new-chat-btn:hover { background: rgba(255,255,255,0.1); border-color: white; }
         .menu-btn { display: none; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: white; }
 
         /* LAYOUT */
@@ -93,7 +95,10 @@
             ⚡ OMNISYS
             <span class="tag">AI Chat</span>
         </div>
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+            <button class="new-chat-btn" onclick="nuevaConversacion()">🔄 Nueva conversación</button>
+            <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        </div>
     </header>
 
     <div class="container">
@@ -239,6 +244,12 @@
                 agregarMensaje(`❌ Error de conexión: ${err.message}`, 'assistant');
             }
             enviarBtn.disabled = false;
+            preguntaInput.focus();
+        }
+
+        async function nuevaConversacion() {
+            await fetch('/nueva-sesion', { method: 'POST' });
+            chat.innerHTML = `<div class="message assistant"><div class="msg-content">¡Conversación reiniciada! Pregúntame lo que necesites. 😊</div></div>`;
             preguntaInput.focus();
         }
 

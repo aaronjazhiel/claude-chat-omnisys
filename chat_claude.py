@@ -176,6 +176,36 @@ def ejecutar_tool(name, inputs):
 
 
 sesiones = {}
+MAX_HISTORIAL = 20  # máximo de mensajes en historial
+
+
+def compactar_historial(historial):
+    """Reemplaza tool_results pesados con resúmenes cortos para ahorrar tokens."""
+    for i, msg in enumerate(historial):
+        if msg["role"] == "user" and isinstance(msg["content"], list):
+            # Es un tool_result — compactar
+            for j, item in enumerate(msg["content"]):
+                if isinstance(item, dict) and item.get("type") == "tool_result":
+                    contenido = item.get("content", "")
+                    if len(contenido) > 500:
+                        item["content"] = contenido[:500] + f"\n... [compactado: {len(contenido)} chars originales]"
+
+
+def recortar_historial(historial):
+    """Mantiene solo los últimos MAX_HISTORIAL mensajes."""
+    if len(historial) > MAX_HISTORIAL:
+        # Siempre empezar con un mensaje de user
+        recortado = historial[-MAX_HISTORIAL:]
+        while recortado and recortado[0]["role"] != "user":
+            recortado.pop(0)
+        historial.clear()
+        historial.extend(recortado)
+
+
+def limpiar_sesion(session_id="default"):
+    if session_id in sesiones:
+        sesiones[session_id] = []
+
 
 def consultar(pregunta, session_id="default"):
     if session_id not in sesiones:
@@ -200,6 +230,9 @@ def consultar(pregunta, session_id="default"):
                 for block in response.content:
                     if hasattr(block, "text"):
                         historial.append({"role": "assistant", "content": response.content})
+                        # Compactar y recortar después de cada respuesta completa
+                        compactar_historial(historial)
+                        recortar_historial(historial)
                         return {
                             "respuesta": block.text,
                             "archivos": archivos_leidos,
