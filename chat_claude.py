@@ -17,7 +17,7 @@ SYSTEM_PROMPT = open(os.path.join(os.path.dirname(__file__), "prompts/system_pro
 tools = [
     {
         "name": "ejecutar_comando",
-        "description": "Ejecuta un comando del sistema. Usa para hora, fecha, cálculos, etc.",
+        "description": "Ejecuta un comando del sistema (hora, fecha, cálculos).",
         "input_schema": {
             "type": "object",
             "properties": {"comando": {"type": "string", "description": "Comando a ejecutar"}},
@@ -26,28 +26,38 @@ tools = [
     },
     {
         "name": "listar_archivos",
-        "description": "Lista archivos del repositorio filtrando por extensión",
+        "description": "Lista archivos del repositorio SICA filtrando por extensión (.4gl, .sql, .per, .md, etc.)",
         "input_schema": {
             "type": "object",
-            "properties": {"extension": {"type": "string", "description": "Extensión: .py .sql .md etc."}},
+            "properties": {"extension": {"type": "string", "description": "Extensión a filtrar"}},
             "required": ["extension"]
         }
     },
     {
-        "name": "leer_archivo",
-        "description": "Lee el contenido completo de un archivo del repositorio",
+        "name": "listar_carpetas",
+        "description": "Lista las carpetas/módulos del repositorio SICA para explorar su estructura.",
         "input_schema": {
             "type": "object",
-            "properties": {"path": {"type": "string", "description": "Ruta del archivo"}},
+            "properties": {
+                "path": {"type": "string", "description": "Ruta de la carpeta a explorar. Usa '' para la raíz.", "default": ""}
+            }
+        }
+    },
+    {
+        "name": "leer_archivo",
+        "description": "Lee el contenido completo de un archivo del repositorio SICA (.4gl, .sql, .per, etc.)",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string", "description": "Ruta del archivo. Ejemplo: src/GL0042.4gl"}},
             "required": ["path"]
         }
     },
     {
         "name": "buscar_codigo",
-        "description": "Busca texto dentro del código fuente del repositorio",
+        "description": "Busca un término dentro del código fuente del repositorio SICA. Útil para encontrar funciones, stored procedures, tablas, variables o referencias cruzadas entre programas.",
         "input_schema": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "Texto a buscar"}},
+            "properties": {"query": {"type": "string", "description": "Texto a buscar (función, SP, tabla, variable, etc.)"}},
             "required": ["query"]
         }
     }
@@ -71,22 +81,38 @@ def ejecutar_tool(name, inputs):
             archivos = [f["path"] for f in tree if f["path"].endswith(inputs["extension"])]
             return json.dumps({"total": len(archivos), "archivos": archivos}, ensure_ascii=False)
 
+        elif name == "listar_carpetas":
+            path = inputs.get("path", "")
+            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=headers)
+            tree = r.json().get("tree", [])
+            carpetas = set()
+            for f in tree:
+                p = f["path"]
+                if path and not p.startswith(path + "/"):
+                    continue
+                resto = p[len(path):].lstrip("/") if path else p
+                parte = resto.split("/")[0]
+                if "/" in resto:
+                    carpetas.add(parte + "/")
+                else:
+                    carpetas.add(parte)
+            return json.dumps(sorted(carpetas), ensure_ascii=False)
+
         elif name == "leer_archivo":
             r = requests.get(f"https://api.github.com/repos/{REPO}/contents/{inputs['path']}", headers=headers)
             if r.status_code != 200:
                 return f"Error: archivo '{inputs['path']}' no encontrado"
-            return base64.b64decode(r.json()["content"]).decode("utf-8")[:5000]
+            return base64.b64decode(r.json()["content"]).decode("utf-8")[:15000]
 
         elif name == "buscar_codigo":
             r = requests.get(f"https://api.github.com/search/code?q={inputs['query']}+repo:{REPO}", headers=headers)
             items = r.json().get("items", [])
-            return json.dumps([{"archivo": i["path"], "url": i["html_url"]} for i in items[:10]], ensure_ascii=False)
+            return json.dumps([{"archivo": i["path"], "url": i["html_url"]} for i in items[:15]], ensure_ascii=False)
     except Exception as e:
         return f"Error: {e}"
     return "Tool no reconocida"
 
 
-# Historial por sesión (en memoria)
 sesiones = {}
 
 def consultar(pregunta, session_id="default"):
@@ -125,7 +151,7 @@ def consultar(pregunta, session_id="default"):
                     if block.type == "tool_use":
                         tools_usadas.append(block.name)
                         resultado = ejecutar_tool(block.name, block.input)
-                        if block.name in ["leer_archivo", "buscar_codigo"]:
+                        if block.name in ["leer_archivo", "buscar_codigo", "listar_carpetas"]:
                             archivos_leidos.append(json.dumps(block.input, ensure_ascii=False))
                         tool_results.append({
                             "type": "tool_result",

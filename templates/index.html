@@ -95,17 +95,28 @@
 
     <div class="container">
         <aside class="sidebar" id="sidebar">
-            <h3>💬 Preguntas rápidas</h3>
+            <h3>🔍 Análisis de código SICA</h3>
             <div class="prompt-list">
-                <button class="prompt-item" onclick="preguntar('¿Qué hora es en Ciudad de México?')">🕐 ¿Qué hora es en CDMX?</button>
-                <button class="prompt-item" onclick="preguntar('¿Qué día es hoy?')">📅 ¿Qué día es hoy?</button>
-                <button class="prompt-item" onclick="preguntar('Explícame qué es una API REST')">📖 ¿Qué es una API REST?</button>
+                <button class="prompt-item" onclick="preguntar('¿Qué módulos o carpetas tiene el repositorio SICA?')">📂 Explorar estructura del repo</button>
+                <button class="prompt-item" onclick="preguntar('Lista los archivos .4gl del repositorio')">⚙️ Listar programas .4gl</button>
+                <button class="prompt-item" onclick="preguntar('Lista los archivos .sql del repositorio')">🗄️ Listar archivos SQL</button>
             </div>
 
-
+            <hr class="section-divider">
+            <h3>💬 Preguntas de ejemplo</h3>
+            <div class="prompt-list">
+                <button class="prompt-item" onclick="preguntar('Lee el README.md y explícame de qué trata el proyecto')">📖 ¿De qué trata el proyecto?</button>
+                <button class="prompt-item" onclick="preguntar('Busca la función PAGP10 y dime qué hace')">🔎 Buscar una función</button>
+                <button class="prompt-item" onclick="preguntar('¿Qué stored procedures se usan en el sistema?')">🗃️ Stored procedures</button>
+                <button class="prompt-item" onclick="preguntar('¿Qué tablas se afectan en el proceso de dispersión?')">📊 Tablas de un proceso</button>
+            </div>
 
             <hr class="section-divider">
             <h3>ℹ️ Info</h3>
+            <div class="info-box">
+                <h4>Repositorio</h4>
+                <p>mcp-sica-genero (GitHub)</p>
+            </div>
             <div class="info-box">
                 <h4>Modelo</h4>
                 <p>Claude Sonnet 4 (Anthropic)</p>
@@ -121,8 +132,12 @@
             <div class="chat-body" id="chat">
                 <div class="message assistant">
                     <div class="msg-content">
-                        ¡Hola! Soy el asistente de <strong>Omnisys</strong>.<br><br>
-                        Pregúntame lo que quieras, estoy aquí para ayudarte. 😊
+                        ¡Hola! Soy el asistente de <strong>Omnisys</strong> para análisis de código <strong>SICA</strong>.<br><br>
+                        Puedo leer el código fuente directamente de GitHub y ayudarte a entender:<br>
+                        🔍 Qué hace cada programa<br>
+                        🗃️ Qué stored procedures y tablas usa<br>
+                        🔗 Cómo se conectan los módulos entre sí<br><br>
+                        Pregúntame lo que necesites. 😊
                     </div>
                 </div>
             </div>
@@ -190,7 +205,7 @@
             const loading = document.createElement('div');
             loading.className = 'loading';
             loading.id = 'loading';
-            loading.textContent = '⏳ Pensando...';
+            loading.textContent = '⏳ Analizando código...';
             chat.appendChild(loading);
             chat.scrollTop = chat.scrollHeight;
             enviarBtn.disabled = true;
