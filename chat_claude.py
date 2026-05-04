@@ -304,40 +304,30 @@ def consultar_stream(pregunta, session_id="default"):
     except anthropic.RateLimitError:
         historial.pop()
         compactar_historial(historial)
-        # Reintentar hasta 3 veces esperando entre cada intento
-        for intento in range(3):
-            espera = 15 * (intento + 1)
-            yield {"tipo": "pensando", "mensaje": f"Rate limit alcanzado. Esperando {espera}s antes de reintentar ({intento+1}/3)..."}
-            time.sleep(espera)
-            try:
-                historial.append({"role": "user", "content": pregunta})
-                yield {"tipo": "pensando", "mensaje": "Reintentando..."}
-                response = client.messages.create(
-                    model=MODEL, max_tokens=8192, system=SYSTEM_PROMPT,
-                    tools=tools, messages=historial
-                )
-                for block in response.content:
-                    if hasattr(block, "text"):
-                        historial.append({"role": "assistant", "content": response.content})
-                        compactar_historial(historial)
-                        recortar_historial(historial)
-                        yield {
-                            "tipo": "respuesta",
-                            "respuesta": block.text,
-                            "archivos": archivos_leidos,
-                            "tools": tools_usadas,
-                            "tokens_input": response.usage.input_tokens,
-                            "tokens_output": response.usage.output_tokens
-                        }
-                        return
-            except anthropic.RateLimitError:
-                historial.pop()
-                compactar_historial(historial)
-                continue
-            except Exception:
-                historial.pop()
-                break
-        yield {"tipo": "respuesta", "respuesta": "Hubo un problema con la consulta. Inicia una nueva conversacion e intenta de nuevo.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
+        yield {"tipo": "pensando", "mensaje": "Esperando disponibilidad..."}
+        time.sleep(60)
+        historial.append({"role": "user", "content": pregunta})
+        try:
+            response = client.messages.create(
+                model=MODEL, max_tokens=8192, system=SYSTEM_PROMPT,
+                tools=tools, messages=historial
+            )
+            for block in response.content:
+                if hasattr(block, "text"):
+                    historial.append({"role": "assistant", "content": response.content})
+                    compactar_historial(historial)
+                    recortar_historial(historial)
+                    yield {
+                        "tipo": "respuesta",
+                        "respuesta": block.text,
+                        "archivos": archivos_leidos,
+                        "tools": tools_usadas,
+                        "tokens_input": response.usage.input_tokens,
+                        "tokens_output": response.usage.output_tokens
+                    }
+                    return
+        except Exception:
+            historial.pop()
 
     except anthropic.BadRequestError:
         historial.clear()
