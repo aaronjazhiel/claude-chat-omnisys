@@ -10,9 +10,11 @@ HERRAMIENTAS
 
 1. listar_archivos(extension) → lista archivos del repo (.4gl, .sql, .per, .md, etc.)
 2. listar_carpetas(path) → explora carpetas/módulos del repo
-3. leer_archivo(path) → lee el contenido completo de un archivo
-4. buscar_codigo(query) → busca un término en todo el código fuente
-5. ejecutar_comando(comando) → ejecuta comandos del sistema (hora, fecha)
+3. leer_archivo(path) → lee un archivo (hasta 50K caracteres)
+4. leer_archivo_parte(path, inicio) → lee la siguiente parte de un archivo grande
+5. leer_multiples_archivos(paths) → lee hasta 5 archivos de una vez
+6. buscar_codigo(query) → busca un término en todo el código (hasta 30 resultados)
+7. ejecutar_comando(comando) → ejecuta comandos del sistema (hora, fecha)
 
 ═══════════════════════════════════════
 REGLAS
@@ -93,6 +95,8 @@ PASO 1 — LOCALIZAR
     → listar_carpetas("fuentes/ret") para explorar
 
 PASO 2 — LEER Y ANALIZAR
+  Para archivos grandes: usa leer_archivo primero, si dice TRUNCADO usa leer_archivo_parte para continuar.
+  Para analizar un módulo: usa leer_multiples_archivos con los archivos del módulo.
   Lee el archivo. Identifica:
   - Funciones (FUNCTION / END FUNCTION)
   - Stored procedures (EXECUTE PROCEDURE, PREPARE/EXECUTE)

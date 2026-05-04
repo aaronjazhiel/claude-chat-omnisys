@@ -39,22 +39,50 @@ tools = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Ruta de la carpeta a explorar. Usa '' para la raíz.", "default": ""}
+                "path": {"type": "string", "description": "Ruta de la carpeta. Usa '' para la raíz.", "default": ""}
             }
         }
     },
     {
         "name": "leer_archivo",
-        "description": "Lee el contenido completo de un archivo del repositorio SICA (.4gl, .sql, .per, etc.)",
+        "description": "Lee el contenido de un archivo del repositorio SICA. Para archivos grandes, devuelve las primeras 50,000 caracteres. Si necesitas más, usa leer_archivo_parte.",
         "input_schema": {
             "type": "object",
-            "properties": {"path": {"type": "string", "description": "Ruta del archivo. Ejemplo: src/GL0042.4gl"}},
+            "properties": {"path": {"type": "string", "description": "Ruta del archivo"}},
             "required": ["path"]
         }
     },
     {
+        "name": "leer_archivo_parte",
+        "description": "Lee una parte específica de un archivo grande. Útil para archivos .4gl o .sql que superan 50K caracteres. Especifica desde qué carácter empezar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Ruta del archivo"},
+                "inicio": {"type": "integer", "description": "Carácter desde donde empezar a leer (0 = inicio)", "default": 0}
+            },
+            "required": ["path"]
+        }
+    },
+    {
+        "name": "leer_multiples_archivos",
+        "description": "Lee varios archivos de una vez. Útil para analizar un módulo completo o comparar programas relacionados. Máximo 5 archivos por llamada.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Lista de rutas de archivos (máximo 5)",
+                    "maxItems": 5
+                }
+            },
+            "required": ["paths"]
+        }
+    },
+    {
         "name": "buscar_codigo",
-        "description": "Busca un término dentro del código fuente del repositorio SICA. Útil para encontrar funciones, stored procedures, tablas, variables o referencias cruzadas entre programas.",
+        "description": "Busca un término dentro del código fuente del repositorio SICA. Devuelve hasta 30 archivos donde aparece el término.",
         "input_schema": {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "Texto a buscar (función, SP, tabla, variable, etc.)"}},
@@ -64,9 +92,27 @@ tools = [
 ]
 
 COMANDOS_PERMITIDOS = ["date", "TZ=", "echo", "cal", "whoami", "uname", "python3 -c"]
+MAX_CHARS = 50000
+CHUNK_SIZE = 50000
+
+
+def github_headers():
+    return {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+
+
+def leer_archivo_github(path, inicio=0):
+    r = requests.get(f"https://api.github.com/repos/{REPO}/contents/{path}", headers=github_headers())
+    if r.status_code != 200:
+        return f"Error: archivo '{path}' no encontrado"
+    contenido = base64.b64decode(r.json()["content"]).decode("utf-8")
+    total = len(contenido)
+    fragmento = contenido[inicio:inicio + CHUNK_SIZE]
+    if total > inicio + CHUNK_SIZE:
+        return f"{fragmento}\n\n--- ARCHIVO TRUNCADO: mostrando caracteres {inicio}-{inicio + CHUNK_SIZE} de {total} total. Usa leer_archivo_parte con inicio={inicio + CHUNK_SIZE} para continuar. ---"
+    return fragmento
+
 
 def ejecutar_tool(name, inputs):
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
     try:
         if name == "ejecutar_comando":
             cmd = inputs["comando"]
@@ -76,14 +122,14 @@ def ejecutar_tool(name, inputs):
             return r.stdout or r.stderr or "(sin salida)"
 
         elif name == "listar_archivos":
-            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=headers)
+            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=github_headers())
             tree = r.json().get("tree", [])
             archivos = [f["path"] for f in tree if f["path"].endswith(inputs["extension"])]
             return json.dumps({"total": len(archivos), "archivos": archivos}, ensure_ascii=False)
 
         elif name == "listar_carpetas":
             path = inputs.get("path", "")
-            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=headers)
+            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=github_headers())
             tree = r.json().get("tree", [])
             carpetas = set()
             for f in tree:
@@ -99,15 +145,31 @@ def ejecutar_tool(name, inputs):
             return json.dumps(sorted(carpetas), ensure_ascii=False)
 
         elif name == "leer_archivo":
-            r = requests.get(f"https://api.github.com/repos/{REPO}/contents/{inputs['path']}", headers=headers)
-            if r.status_code != 200:
-                return f"Error: archivo '{inputs['path']}' no encontrado"
-            return base64.b64decode(r.json()["content"]).decode("utf-8")[:15000]
+            return leer_archivo_github(inputs["path"])
+
+        elif name == "leer_archivo_parte":
+            return leer_archivo_github(inputs["path"], inputs.get("inicio", 0))
+
+        elif name == "leer_multiples_archivos":
+            paths = inputs["paths"][:5]
+            resultados = {}
+            for p in paths:
+                contenido = leer_archivo_github(p)
+                # Limitar cada archivo a 15K cuando se leen múltiples
+                resultados[p] = contenido[:15000] + (f"\n--- TRUNCADO a 15K de {len(contenido)} chars ---" if len(contenido) > 15000 else "")
+            return json.dumps(resultados, ensure_ascii=False)
 
         elif name == "buscar_codigo":
-            r = requests.get(f"https://api.github.com/search/code?q={inputs['query']}+repo:{REPO}", headers=headers)
-            items = r.json().get("items", [])
-            return json.dumps([{"archivo": i["path"], "url": i["html_url"]} for i in items[:15]], ensure_ascii=False)
+            r = requests.get(
+                f"https://api.github.com/search/code?q={inputs['query']}+repo:{REPO}&per_page=30",
+                headers=github_headers()
+            )
+            data = r.json()
+            items = data.get("items", [])
+            total = data.get("total_count", 0)
+            resultado = [{"archivo": i["path"], "url": i["html_url"]} for i in items[:30]]
+            return json.dumps({"total_encontrados": total, "mostrando": len(resultado), "resultados": resultado}, ensure_ascii=False)
+
     except Exception as e:
         return f"Error: {e}"
     return "Tool no reconocida"
@@ -128,7 +190,7 @@ def consultar(pregunta, session_id="default"):
         while True:
             response = client.messages.create(
                 model=MODEL,
-                max_tokens=4096,
+                max_tokens=8192,
                 system=SYSTEM_PROMPT,
                 tools=tools,
                 messages=historial
@@ -151,7 +213,7 @@ def consultar(pregunta, session_id="default"):
                     if block.type == "tool_use":
                         tools_usadas.append(block.name)
                         resultado = ejecutar_tool(block.name, block.input)
-                        if block.name in ["leer_archivo", "buscar_codigo", "listar_carpetas"]:
+                        if block.name not in ["ejecutar_comando"]:
                             archivos_leidos.append(json.dumps(block.input, ensure_ascii=False))
                         tool_results.append({
                             "type": "tool_result",
