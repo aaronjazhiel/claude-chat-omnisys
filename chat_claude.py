@@ -215,9 +215,12 @@ def consultar_stream(pregunta, session_id="default"):
     tokens_output = 0
 
     first_thinking = True
+    max_iteraciones = 3
+    iteracion = 0
 
     try:
-        while True:
+        while iteracion < max_iteraciones:
+            iteracion += 1
             if first_thinking:
                 yield {"tipo": "pensando", "mensaje": "Analizando tu pregunta..."}
                 first_thinking = False
