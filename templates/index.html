@@ -59,8 +59,11 @@
         .msg-content th { background: var(--omnisys-blue); color: white; padding: 0.6rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
         .msg-content td { padding: 0.6rem; border-bottom: 1px solid var(--border); color: var(--omnisys-gray); }
         .msg-content tr:last-child td { border-bottom: none; }
-        .copy-btn { position: absolute; top: 0.4rem; right: 0.4rem; background: white; border: 1px solid var(--border); border-radius: 6px; padding: 0.2rem 0.5rem; font-size: 0.7rem; cursor: pointer; color: var(--omnisys-gray); }
-        .copy-btn:hover { background: var(--omnisys-accent); color: white; border-color: var(--omnisys-accent); }
+        .copy-btn, .doc-btn { position: absolute; top: 0.4rem; background: white; border: 1px solid var(--border); border-radius: 6px; padding: 0.2rem 0.5rem; font-size: 0.7rem; cursor: pointer; color: var(--omnisys-gray); }
+        .copy-btn { right: 0.4rem; }
+        .doc-btn { right: 3rem; }
+        .copy-btn:hover, .doc-btn:hover { background: var(--omnisys-accent); color: white; border-color: var(--omnisys-accent); }
+        .doc-btn.loading { opacity: 0.5; cursor: wait; }
         .tools-badge { display: inline-block; font-size: 0.65rem; background: #e0f2fe; color: var(--omnisys-blue); padding: 0.15rem 0.5rem; border-radius: 10px; margin-bottom: 0.4rem; }
 
         /* INPUT */
@@ -180,8 +183,8 @@
             if (meta && meta.archivos && meta.archivos.length) {
                 badges += meta.archivos.map(a => `<span class="tools-badge">📄 ${a}</span>`).join(' ');
             }
-            const copyBtn = tipo === 'assistant' ? '<button class="copy-btn" onclick="copiar(this)">📋</button>' : '';
-            div.innerHTML = `<div class="msg-content">${copyBtn}${badges ? badges + '<br>' : ''}${html}</div>`;
+            const btns = tipo === 'assistant' ? '<button class="doc-btn" onclick="generarDoc(this)" title="Descargar Word">📥 Word</button><button class="copy-btn" onclick="copiar(this)" title="Copiar">📋</button>' : '';
+            div.innerHTML = `<div class="msg-content">${btns}${badges ? badges + '<br>' : ''}${html}</div>`;
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         }
@@ -233,6 +236,31 @@
             }
             enviarBtn.disabled = false;
             preguntaInput.focus();
+        }
+
+        async function generarDoc(btn) {
+            const msgContent = btn.parentElement;
+            const texto = msgContent.innerText.replace('📥 Word', '').replace('📋', '').trim();
+            btn.classList.add('loading');
+            btn.textContent = '⏳';
+            try {
+                const res = await fetch('/generar-doc', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contenido: texto, pregunta: 'Análisis SICA' })
+                });
+                const data = await res.json();
+                if (data.archivo) {
+                    window.open(`/descargar/${data.archivo}`, '_blank');
+                    btn.textContent = '✅';
+                } else {
+                    btn.textContent = '❌';
+                }
+            } catch (e) {
+                btn.textContent = '❌';
+            }
+            btn.classList.remove('loading');
+            setTimeout(() => btn.textContent = '📥 Word', 2000);
         }
 
         enviarBtn.addEventListener('click', () => preguntar());
