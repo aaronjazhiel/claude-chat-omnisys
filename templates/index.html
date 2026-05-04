@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omnisys — Asistente IA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --omnisys-blue: #0F4C81;
+            --omnisys-accent: #00A3E0;
+            --omnisys-dark: #0A2540;
+            --omnisys-gray: #4A5568;
+            --bg-light: #F7F8FC;
+            --border: #E2E8F0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-light); display: flex; flex-direction: column; height: 100vh; }
+
+        /* HEADER */
+        .header { background: var(--omnisys-dark); padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+        .logo { display: flex; align-items: center; gap: 0.75rem; color: white; font-weight: 700; font-size: 1.1rem; }
+        .logo img { height: 28px; }
+        .logo .tag { background: var(--omnisys-accent); color: white; font-size: 0.6rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-weight: 600; }
+        .menu-btn { display: none; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: white; }
+
+        /* LAYOUT */
+        .container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 280px; background: #fff; border-right: 1px solid var(--border); overflow-y: auto; padding: 1.25rem; }
+        .main-chat { flex: 1; display: flex; flex-direction: column; background: #fff; }
+
+        /* SIDEBAR */
+        .sidebar h3 { font-size: 0.75rem; font-weight: 700; color: var(--omnisys-gray); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .prompt-list { display: flex; flex-direction: column; gap: 0.4rem; }
+        .prompt-item { background: var(--bg-light); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.75rem; font-size: 0.8rem; color: var(--omnisys-gray); cursor: pointer; transition: all 0.2s; text-align: left; line-height: 1.4; }
+        .prompt-item:hover { border-color: var(--omnisys-accent); background: #f0f9ff; }
+        .section-divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+        .info-box { background: var(--bg-light); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; }
+        .info-box h4 { font-size: 0.7rem; font-weight: 700; color: var(--omnisys-blue); margin-bottom: 0.3rem; text-transform: uppercase; }
+        .info-box p { font-size: 0.75rem; color: var(--omnisys-gray); line-height: 1.5; }
+
+        /* CHAT */
+        .chat-header { background: linear-gradient(135deg, var(--omnisys-blue), var(--omnisys-accent)); color: white; padding: 0.85rem 1.5rem; display: flex; align-items: center; gap: 0.75rem; }
+        .chat-header h2 { font-size: 0.95rem; font-weight: 700; }
+        .chat-body { flex: 1; overflow-y: auto; padding: 1.5rem; }
+        .message { margin-bottom: 1.25rem; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { text-align: right; }
+        .msg-content { display: inline-block; padding: 0.75rem 1rem; border-radius: 12px; max-width: 75%; font-size: 0.88rem; line-height: 1.6; position: relative; }
+        .message.user .msg-content { background: var(--omnisys-blue); color: white; border-radius: 12px 12px 0 12px; }
+        .message.assistant .msg-content { background: var(--bg-light); color: #333; border-radius: 12px 12px 12px 0; }
+        .msg-content strong { color: var(--omnisys-blue); }
+        .msg-content ul, .msg-content ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+        .msg-content li { margin: 0.2rem 0; }
+        .msg-content code { background: #fff; padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.82rem; border: 1px solid var(--border); }
+        .msg-content pre { background: var(--omnisys-dark); color: #e2e8f0; padding: 0.75rem; border-radius: 8px; overflow-x: auto; margin: 0.5rem 0; font-size: 0.82rem; }
+        .msg-content pre code { background: none; border: none; color: inherit; padding: 0; }
+        .msg-content table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8rem; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .msg-content th { background: var(--omnisys-blue); color: white; padding: 0.6rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px; text-align: left; }
+        .msg-content td { padding: 0.6rem; border-bottom: 1px solid var(--border); color: var(--omnisys-gray); }
+        .msg-content tr:last-child td { border-bottom: none; }
+        .copy-btn { position: absolute; top: 0.4rem; right: 0.4rem; background: white; border: 1px solid var(--border); border-radius: 6px; padding: 0.2rem 0.5rem; font-size: 0.7rem; cursor: pointer; color: var(--omnisys-gray); }
+        .copy-btn:hover { background: var(--omnisys-accent); color: white; border-color: var(--omnisys-accent); }
+        .tools-badge { display: inline-block; font-size: 0.65rem; background: #e0f2fe; color: var(--omnisys-blue); padding: 0.15rem 0.5rem; border-radius: 10px; margin-bottom: 0.4rem; }
+
+        /* INPUT */
+        .chat-input { border-top: 1px solid var(--border); padding: 1rem 1.5rem; background: #fff; }
+        .input-wrapper { display: flex; gap: 0.75rem; }
+        #pregunta { flex: 1; padding: 0.7rem 1rem; border: 2px solid var(--border); border-radius: 24px; font-size: 0.88rem; font-family: 'Inter', sans-serif; outline: none; }
+        #pregunta:focus { border-color: var(--omnisys-accent); }
+        #enviar { padding: 0.7rem 1.5rem; background: var(--omnisys-blue); color: white; border: none; border-radius: 24px; cursor: pointer; font-size: 0.88rem; font-weight: 600; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        #enviar:hover { background: var(--omnisys-accent); }
+        #enviar:disabled { background: #cbd5e0; cursor: not-allowed; }
+        .loading { text-align: center; color: #999; padding: 1rem; font-size: 0.82rem; }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .menu-btn { display: block; }
+            .sidebar { position: fixed; left: -280px; top: 56px; height: calc(100vh - 56px); z-index: 50; transition: left 0.3s; box-shadow: 2px 0 10px rgba(0,0,0,0.15); }
+            .sidebar.active { left: 0; }
+            .overlay { display: none; position: fixed; top: 56px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 40; }
+            .overlay.active { display: block; }
+            .msg-content { max-width: 90%; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            ⚡ OMNISYS
+            <span class="tag">AI Chat</span>
+        </div>
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar" id="sidebar">
+            <h3>💬 Preguntas rápidas</h3>
+            <div class="prompt-list">
+                <button class="prompt-item" onclick="preguntar('¿Qué hora es en Ciudad de México?')">🕐 ¿Qué hora es en CDMX?</button>
+                <button class="prompt-item" onclick="preguntar('¿Qué día es hoy?')">📅 ¿Qué día es hoy?</button>
+                <button class="prompt-item" onclick="preguntar('Explícame qué es una API REST')">📖 ¿Qué es una API REST?</button>
+            </div>
+
+            <hr class="section-divider">
+            <h3>📁 Análisis de código</h3>
+            <div class="prompt-list">
+                <button class="prompt-item" onclick="preguntar('Lista los archivos .md del repositorio')">📄 Archivos .md del repo</button>
+                <button class="prompt-item" onclick="preguntar('Lee el README.md y explícame de qué trata')">📖 Leer README.md</button>
+                <button class="prompt-item" onclick="preguntar('Busca la palabra SACI en el repositorio')">🔍 Buscar "SACI" en el repo</button>
+                <button class="prompt-item" onclick="preguntar('¿Qué archivos .4gl existen?')">⚙️ Archivos .4gl</button>
+            </div>
+
+            <hr class="section-divider">
+            <h3>ℹ️ Info</h3>
+            <div class="info-box">
+                <h4>Modelo</h4>
+                <p>Claude Sonnet 4 (Anthropic)</p>
+            </div>
+            <div class="info-box">
+                <h4>Capacidades</h4>
+                <p>Chat general + análisis de código en GitHub + comandos del sistema</p>
+            </div>
+        </aside>
+
+        <main class="main-chat">
+            <div class="chat-header">
+                <span>🤖</span>
+                <h2>Asistente Omnisys</h2>
+            </div>
+            <div class="chat-body" id="chat">
+                <div class="message assistant">
+                    <div class="msg-content">
+                        ¡Hola! Soy el asistente de <strong>Omnisys</strong>.<br><br>
+                        Puedo ayudarte con:<br>
+                        💬 <strong>Preguntas generales</strong> — lo que quieras saber<br>
+                        📁 <strong>Análisis de código</strong> — leo archivos directo de GitHub<br>
+                        🕐 <strong>Información en tiempo real</strong> — hora, fecha, etc.<br><br>
+                        ¿En qué te puedo ayudar?
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input">
+                <div class="input-wrapper">
+                    <input type="text" id="pregunta" placeholder="Escribe tu pregunta aquí..." />
+                    <button id="enviar">Enviar</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+    <script>
+        const chat = document.getElementById('chat');
+        const preguntaInput = document.getElementById('pregunta');
+        const enviarBtn = document.getElementById('enviar');
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('overlay').classList.toggle('active');
+        }
+
+        function formatear(texto) {
+            return texto
+                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function agregarMensaje(html, tipo, meta) {
+            const div = document.createElement('div');
+            div.className = `message ${tipo}`;
+            let badges = '';
+            if (meta && meta.tools && meta.tools.length) {
+                badges = meta.tools.map(t => `<span class="tools-badge">🔧 ${t}</span>`).join(' ');
+            }
+            if (meta && meta.archivos && meta.archivos.length) {
+                badges += meta.archivos.map(a => `<span class="tools-badge">📄 ${a}</span>`).join(' ');
+            }
+            const copyBtn = tipo === 'assistant' ? '<button class="copy-btn" onclick="copiar(this)">📋</button>' : '';
+            div.innerHTML = `<div class="msg-content">${copyBtn}${badges ? badges + '<br>' : ''}${html}</div>`;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function copiar(btn) {
+            const txt = btn.parentElement.innerText.replace('📋', '').trim();
+            navigator.clipboard.writeText(txt).then(() => {
+                btn.textContent = '✓';
+                setTimeout(() => btn.textContent = '📋', 1500);
+            });
+        }
+
+        async function preguntar(texto) {
+            if (!texto) texto = preguntaInput.value.trim();
+            if (!texto) return;
+            if (window.innerWidth <= 768) toggleSidebar();
+
+            preguntaInput.value = '';
+            agregarMensaje(formatear(texto), 'user');
+
+            const loading = document.createElement('div');
+            loading.className = 'loading';
+            loading.id = 'loading';
+            loading.textContent = '⏳ Pensando...';
+            chat.appendChild(loading);
+            chat.scrollTop = chat.scrollHeight;
+            enviarBtn.disabled = true;
+
+            try {
+                const res = await fetch('/consultar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pregunta: texto })
+                });
+                const data = await res.json();
+                loading.remove();
+
+                if (data.error) {
+                    agregarMensaje(`❌ ${data.error}`, 'assistant');
+                } else {
+                    agregarMensaje(formatear(data.respuesta), 'assistant', {
+                        tools: data.tools || [],
+                        archivos: data.archivos || []
+                    });
+                }
+            } catch (err) {
+                loading.remove();
+                agregarMensaje(`❌ Error de conexión: ${err.message}`, 'assistant');
+            }
+            enviarBtn.disabled = false;
+            preguntaInput.focus();
+        }
+
+        enviarBtn.addEventListener('click', () => preguntar());
+        preguntaInput.addEventListener('keypress', e => { if (e.key === 'Enter') preguntar(); });
+    </script>
+</body>
+</html>
