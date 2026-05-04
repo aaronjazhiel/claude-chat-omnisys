@@ -303,7 +303,7 @@
         <h2>Chat — Asistente de Codigo</h2>
         <div class="status"><span class="dot"></span> Conectado a GitHub · Claude API activo</div>
       </div>
-      <div id="tokenCounter" style="background:rgba(255,255,255,.15);padding:4px 10px;border-radius:12px;font-size:11px;color:white;font-family:ui-monospace,Menlo,Consolas,monospace;">Tokens: 0 · $0.00</div>
+      <div id="tokenCounter" style="background:rgba(255,255,255,.15);padding:4px 10px;border-radius:12px;font-size:11px;color:white;font-family:ui-monospace,Menlo,Consolas,monospace;">Tokens: 0</div>
     </div>
 
     <div class="chat-body" id="chatBody">
@@ -389,17 +389,9 @@
   function actualizarContador(ti, to) {
     totalTokensInput += ti;
     totalTokensOutput += to;
-    const costoInput = (totalTokensInput / 1000000) * 3;
-    const costoOutput = (totalTokensOutput / 1000000) * 15;
-    const costoTotal = costoInput + costoOutput;
     const total = totalTokensInput + totalTokensOutput;
     const el = document.getElementById('tokenCounter');
-    el.textContent = `Tokens: ${total.toLocaleString()} · $${costoTotal.toFixed(4)}`;
-    if (costoTotal > 0.50) {
-      el.style.background = 'rgba(255,82,82,.4)';
-    } else if (costoTotal > 0.20) {
-      el.style.background = 'rgba(255,199,44,.3)';
-    }
+    el.textContent = 'Tokens: ' + total.toLocaleString();
   }
 
   const $body = document.getElementById('chatBody');
@@ -599,8 +591,7 @@
     $body.innerHTML = '';
     totalTokensInput = 0;
     totalTokensOutput = 0;
-    document.getElementById('tokenCounter').textContent = 'Tokens: 0 · $0.00';
-    document.getElementById('tokenCounter').style.background = 'rgba(255,255,255,.15)';
+    document.getElementById("tokenCounter").textContent = "Tokens: 0";
     appendMsg('bot', 'Conversacion reiniciada. Preguntame lo que necesites sobre el codigo SICA.');
     $input.focus();
   }

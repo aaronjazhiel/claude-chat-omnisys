@@ -337,7 +337,7 @@ def consultar_stream(pregunta, session_id="default"):
             except Exception:
                 historial.pop()
                 break
-        yield {"tipo": "respuesta", "respuesta": "No se pudo completar la consulta despues de 3 intentos. Tu plan de Anthropic tiene un limite de 30,000 tokens por minuto. Espera 1 minuto o inicia una nueva conversacion.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
+        yield {"tipo": "respuesta", "respuesta": "Hubo un problema con la consulta. Inicia una nueva conversacion e intenta de nuevo.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
 
     except anthropic.BadRequestError:
         historial.clear()
