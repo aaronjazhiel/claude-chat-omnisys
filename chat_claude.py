@@ -304,31 +304,40 @@ def consultar_stream(pregunta, session_id="default"):
     except anthropic.RateLimitError:
         historial.pop()
         compactar_historial(historial)
-        time.sleep(5)
-        try:
-            historial.append({"role": "user", "content": pregunta})
-            yield {"tipo": "pensando", "mensaje": "Reintentando..."}
-            response = client.messages.create(
-                model=MODEL, max_tokens=8192, system=SYSTEM_PROMPT,
-                tools=tools, messages=historial
-            )
-            for block in response.content:
-                if hasattr(block, "text"):
-                    historial.append({"role": "assistant", "content": response.content})
-                    compactar_historial(historial)
-                    recortar_historial(historial)
-                    yield {
-                        "tipo": "respuesta",
-                        "respuesta": block.text,
-                        "archivos": archivos_leidos,
-                        "tools": tools_usadas,
-                        "tokens_input": response.usage.input_tokens,
-                        "tokens_output": response.usage.output_tokens
-                    }
-                    return
-        except Exception:
-            historial.pop()
-            yield {"tipo": "respuesta", "respuesta": "El servicio esta saturado. Espera 30 segundos e intenta de nuevo.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
+        # Reintentar hasta 3 veces esperando entre cada intento
+        for intento in range(3):
+            espera = 15 * (intento + 1)
+            yield {"tipo": "pensando", "mensaje": f"Rate limit alcanzado. Esperando {espera}s antes de reintentar ({intento+1}/3)..."}
+            time.sleep(espera)
+            try:
+                historial.append({"role": "user", "content": pregunta})
+                yield {"tipo": "pensando", "mensaje": "Reintentando..."}
+                response = client.messages.create(
+                    model=MODEL, max_tokens=8192, system=SYSTEM_PROMPT,
+                    tools=tools, messages=historial
+                )
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        historial.append({"role": "assistant", "content": response.content})
+                        compactar_historial(historial)
+                        recortar_historial(historial)
+                        yield {
+                            "tipo": "respuesta",
+                            "respuesta": block.text,
+                            "archivos": archivos_leidos,
+                            "tools": tools_usadas,
+                            "tokens_input": response.usage.input_tokens,
+                            "tokens_output": response.usage.output_tokens
+                        }
+                        return
+            except anthropic.RateLimitError:
+                historial.pop()
+                compactar_historial(historial)
+                continue
+            except Exception:
+                historial.pop()
+                break
+        yield {"tipo": "respuesta", "respuesta": "No se pudo completar la consulta despues de 3 intentos. Tu plan de Anthropic tiene un limite de 30,000 tokens por minuto. Espera 1 minuto o inicia una nueva conversacion.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
 
     except Exception as e:
         historial.pop()
