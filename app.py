@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from chat_claude import consultar, limpiar_sesion
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from chat_claude import consultar_stream, limpiar_sesion
 import generar_docx
 import os
+import json
 
 app = Flask(__name__)
 
@@ -13,17 +14,13 @@ def index():
 def chat():
     pregunta = request.json.get('pregunta', '').strip()
     if not pregunta:
-        return jsonify({'error': 'Pregunta vacía'})
-    try:
-        resultado = consultar(pregunta)
-        return jsonify({
-            'respuesta': resultado['respuesta'],
-            'archivos': resultado['archivos'],
-            'tools': resultado['tools'],
-            'error': None
-        })
-    except Exception as e:
-        return jsonify({'respuesta': None, 'archivos': [], 'tools': [], 'error': str(e)})
+        return jsonify({'error': 'Pregunta vacia'})
+
+    def stream():
+        for evento in consultar_stream(pregunta):
+            yield f"data: {json.dumps(evento, ensure_ascii=False)}\n\n"
+
+    return Response(stream(), mimetype='text/event-stream')
 
 @app.route('/nueva-sesion', methods=['POST'])
 def nueva_sesion():
@@ -33,7 +30,7 @@ def nueva_sesion():
 @app.route('/generar-doc', methods=['POST'])
 def generar_doc():
     contenido = request.json.get('contenido', '')
-    pregunta = request.json.get('pregunta', 'Análisis de código')
+    pregunta = request.json.get('pregunta', 'Analisis de codigo')
     if not contenido:
         return jsonify({'error': 'Sin contenido'})
     try:
@@ -48,5 +45,5 @@ def descargar(filename):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
-    print(f"\n🚀 Omnisys Chat iniciado en http://localhost:{port}\n")
+    print(f"\nOmnisys Chat iniciado en http://localhost:{port}\n")
     app.run(debug=True, port=port)

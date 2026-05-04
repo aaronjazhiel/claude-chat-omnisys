@@ -1,23 +1,34 @@
 import anthropic
-import requests
 import json
 import os
-import base64
 import subprocess
+import glob
+import time
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-REPO = os.environ.get("GITHUB_REPO", "aaronjazhiel/mcp-sica-genero")
+GITHUB_REPO_URL = os.environ.get("GITHUB_REPO_URL", "https://github.com/aaronjazhiel/mcp-sica-genero.git")
 MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+REPO_DIR = os.path.join(os.path.dirname(__file__), "repo_local")
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
 SYSTEM_PROMPT = open(os.path.join(os.path.dirname(__file__), "prompts/system_prompt.txt")).read()
+
+
+def clonar_repo():
+    if os.path.exists(REPO_DIR):
+        return
+    print(f"Clonando {GITHUB_REPO_URL} ...")
+    subprocess.run(["git", "clone", "--depth", "1", GITHUB_REPO_URL, REPO_DIR],
+                    capture_output=True, timeout=300)
+    print("Repo clonado.")
+
+clonar_repo()
+
 
 tools = [
     {
         "name": "ejecutar_comando",
-        "description": "Ejecuta un comando del sistema (hora, fecha, cálculos).",
+        "description": "Ejecuta un comando del sistema (hora, fecha, calculos).",
         "input_schema": {
             "type": "object",
             "properties": {"comando": {"type": "string", "description": "Comando a ejecutar"}},
@@ -26,26 +37,26 @@ tools = [
     },
     {
         "name": "listar_archivos",
-        "description": "Lista archivos del repositorio SICA filtrando por extensión (.4gl, .sql, .per, .md, etc.)",
+        "description": "Lista archivos del repositorio SICA filtrando por extension.",
         "input_schema": {
             "type": "object",
-            "properties": {"extension": {"type": "string", "description": "Extensión a filtrar"}},
+            "properties": {"extension": {"type": "string", "description": "Extension a filtrar"}},
             "required": ["extension"]
         }
     },
     {
         "name": "listar_carpetas",
-        "description": "Lista las carpetas/módulos del repositorio SICA para explorar su estructura.",
+        "description": "Lista las carpetas/modulos del repositorio SICA.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Ruta de la carpeta. Usa '' para la raíz.", "default": ""}
+                "path": {"type": "string", "description": "Ruta de la carpeta. '' para raiz.", "default": ""}
             }
         }
     },
     {
         "name": "leer_archivo",
-        "description": "Lee el contenido de un archivo del repositorio SICA. Para archivos grandes, devuelve las primeras 50,000 caracteres. Si necesitas más, usa leer_archivo_parte.",
+        "description": "Lee el contenido completo de un archivo del repositorio SICA.",
         "input_schema": {
             "type": "object",
             "properties": {"path": {"type": "string", "description": "Ruta del archivo"}},
@@ -53,63 +64,37 @@ tools = [
         }
     },
     {
-        "name": "leer_archivo_parte",
-        "description": "Lee una parte específica de un archivo grande. Útil para archivos .4gl o .sql que superan 50K caracteres. Especifica desde qué carácter empezar.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Ruta del archivo"},
-                "inicio": {"type": "integer", "description": "Carácter desde donde empezar a leer (0 = inicio)", "default": 0}
-            },
-            "required": ["path"]
-        }
-    },
-    {
         "name": "leer_multiples_archivos",
-        "description": "Lee varios archivos de una vez. Útil para analizar un módulo completo o comparar programas relacionados. Máximo 5 archivos por llamada.",
+        "description": "Lee varios archivos de una vez. Maximo 5.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "paths": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Lista de rutas de archivos (máximo 5)",
-                    "maxItems": 5
-                }
+                "paths": {"type": "array", "items": {"type": "string"}, "description": "Rutas (max 5)", "maxItems": 5}
             },
             "required": ["paths"]
         }
     },
     {
         "name": "buscar_codigo",
-        "description": "Busca un término dentro del código fuente del repositorio SICA. Devuelve hasta 30 archivos donde aparece el término.",
+        "description": "Busca un termino dentro del codigo fuente del repositorio SICA.",
         "input_schema": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "Texto a buscar (función, SP, tabla, variable, etc.)"}},
+            "properties": {"query": {"type": "string", "description": "Texto a buscar"}},
             "required": ["query"]
         }
     }
 ]
 
 COMANDOS_PERMITIDOS = ["date", "TZ=", "echo", "cal", "whoami", "uname", "python3 -c"]
-MAX_CHARS = 30000
-CHUNK_SIZE = 30000
 
-
-def github_headers():
-    return {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
-
-
-def leer_archivo_github(path, inicio=0):
-    r = requests.get(f"https://api.github.com/repos/{REPO}/contents/{path}", headers=github_headers())
-    if r.status_code != 200:
-        return f"Error: archivo '{path}' no encontrado"
-    contenido = base64.b64decode(r.json()["content"]).decode("utf-8")
-    total = len(contenido)
-    fragmento = contenido[inicio:inicio + CHUNK_SIZE]
-    if total > inicio + CHUNK_SIZE:
-        return f"{fragmento}\n\n--- ARCHIVO TRUNCADO: mostrando caracteres {inicio}-{inicio + CHUNK_SIZE} de {total} total. Usa leer_archivo_parte con inicio={inicio + CHUNK_SIZE} para continuar. ---"
-    return fragmento
+TOOL_LABELS = {
+    "buscar_codigo": "Buscando en el codigo",
+    "leer_archivo": "Leyendo archivo",
+    "leer_multiples_archivos": "Leyendo multiples archivos",
+    "listar_archivos": "Listando archivos",
+    "listar_carpetas": "Explorando carpetas",
+    "ejecutar_comando": "Ejecutando comando"
+}
 
 
 def ejecutar_tool(name, inputs):
@@ -122,53 +107,67 @@ def ejecutar_tool(name, inputs):
             return r.stdout or r.stderr or "(sin salida)"
 
         elif name == "listar_archivos":
-            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=github_headers())
-            tree = r.json().get("tree", [])
-            archivos = [f["path"] for f in tree if f["path"].endswith(inputs["extension"])]
+            ext = inputs["extension"]
+            archivos = []
+            for f in glob.glob(f"{REPO_DIR}/**/*{ext}", recursive=True):
+                archivos.append(os.path.relpath(f, REPO_DIR))
+            archivos.sort()
             return json.dumps({"total": len(archivos), "archivos": archivos}, ensure_ascii=False)
 
         elif name == "listar_carpetas":
             path = inputs.get("path", "")
-            r = requests.get(f"https://api.github.com/repos/{REPO}/git/trees/main?recursive=1", headers=github_headers())
-            tree = r.json().get("tree", [])
-            carpetas = set()
-            for f in tree:
-                p = f["path"]
-                if path and not p.startswith(path + "/"):
+            full_path = os.path.join(REPO_DIR, path) if path else REPO_DIR
+            if not os.path.isdir(full_path):
+                return f"Error: carpeta '{path}' no encontrada"
+            items = sorted(os.listdir(full_path))
+            resultado = []
+            for item in items:
+                if item.startswith("."):
                     continue
-                resto = p[len(path):].lstrip("/") if path else p
-                parte = resto.split("/")[0]
-                if "/" in resto:
-                    carpetas.add(parte + "/")
+                if os.path.isdir(os.path.join(full_path, item)):
+                    resultado.append(item + "/")
                 else:
-                    carpetas.add(parte)
-            return json.dumps(sorted(carpetas), ensure_ascii=False)
+                    resultado.append(item)
+            return json.dumps(resultado, ensure_ascii=False)
 
         elif name == "leer_archivo":
-            return leer_archivo_github(inputs["path"])
-
-        elif name == "leer_archivo_parte":
-            return leer_archivo_github(inputs["path"], inputs.get("inicio", 0))
+            filepath = os.path.join(REPO_DIR, inputs["path"])
+            if not os.path.isfile(filepath):
+                return f"Error: archivo '{inputs['path']}' no encontrado"
+            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                contenido = f.read()
+            if len(contenido) > 50000:
+                return contenido[:50000] + f"\n--- TRUNCADO: 50K de {len(contenido)} chars ---"
+            return contenido
 
         elif name == "leer_multiples_archivos":
             paths = inputs["paths"][:5]
             resultados = {}
             for p in paths:
-                contenido = leer_archivo_github(p)
-                # Limitar cada archivo a 15K cuando se leen múltiples
-                resultados[p] = contenido[:10000] + (f"\n--- TRUNCADO a 10K de {len(contenido)} chars ---" if len(contenido) > 10000 else "")
+                filepath = os.path.join(REPO_DIR, p)
+                if not os.path.isfile(filepath):
+                    resultados[p] = "Error: no encontrado"
+                    continue
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                    contenido = f.read()
+                if len(contenido) > 20000:
+                    contenido = contenido[:20000] + f"\n--- TRUNCADO a 20K de {len(contenido)} ---"
+                resultados[p] = contenido
             return json.dumps(resultados, ensure_ascii=False)
 
         elif name == "buscar_codigo":
-            r = requests.get(
-                f"https://api.github.com/search/code?q={inputs['query']}+repo:{REPO}&per_page=30",
-                headers=github_headers()
+            query = inputs["query"]
+            r = subprocess.run(
+                ["grep", "-rli", "--include=*.4gl", "--include=*.sql", "--include=*.per",
+                 "--include=*.md", "--include=*.xcf", query, REPO_DIR],
+                capture_output=True, text=True, timeout=15
             )
-            data = r.json()
-            items = data.get("items", [])
-            total = data.get("total_count", 0)
-            resultado = [{"archivo": i["path"], "url": i["html_url"]} for i in items[:30]]
-            return json.dumps({"total_encontrados": total, "mostrando": len(resultado), "resultados": resultado}, ensure_ascii=False)
+            archivos = []
+            for line in r.stdout.strip().split("\n"):
+                if line:
+                    archivos.append(os.path.relpath(line, REPO_DIR))
+            archivos.sort()
+            return json.dumps({"total": len(archivos), "archivos": archivos[:30]}, ensure_ascii=False)
 
     except Exception as e:
         return f"Error: {e}"
@@ -176,24 +175,21 @@ def ejecutar_tool(name, inputs):
 
 
 sesiones = {}
-MAX_HISTORIAL = 12
+MAX_HISTORIAL = 20
 
 
 def compactar_historial(historial):
-    """Reemplaza tool_results pesados con resumenes cortos para ahorrar tokens."""
     for msg in historial:
         if msg["role"] == "user" and isinstance(msg["content"], list):
             for item in msg["content"]:
                 if isinstance(item, dict) and item.get("type") == "tool_result":
                     contenido = item.get("content", "")
-                    if len(contenido) > 300:
-                        item["content"] = contenido[:300] + f"\n... [compactado: {len(contenido)} chars]"
+                    if len(contenido) > 500:
+                        item["content"] = contenido[:500] + f"\n... [compactado: {len(contenido)} chars]"
 
 
 def recortar_historial(historial):
-    """Mantiene solo los últimos MAX_HISTORIAL mensajes."""
     if len(historial) > MAX_HISTORIAL:
-        # Siempre empezar con un mensaje de user
         recortado = historial[-MAX_HISTORIAL:]
         while recortado and recortado[0]["role"] != "user":
             recortado.pop(0)
@@ -206,7 +202,8 @@ def limpiar_sesion(session_id="default"):
         sesiones[session_id] = []
 
 
-def consultar(pregunta, session_id="default"):
+def consultar_stream(pregunta, session_id="default"):
+    """Genera eventos en tiempo real: progreso de tools y respuesta final."""
     if session_id not in sesiones:
         sesiones[session_id] = []
     historial = sesiones[session_id]
@@ -214,9 +211,13 @@ def consultar(pregunta, session_id="default"):
 
     archivos_leidos = []
     tools_usadas = []
+    tokens_input = 0
+    tokens_output = 0
 
     try:
         while True:
+            yield {"tipo": "pensando", "mensaje": "Analizando tu pregunta..."}
+
             response = client.messages.create(
                 model=MODEL,
                 max_tokens=8192,
@@ -225,40 +226,106 @@ def consultar(pregunta, session_id="default"):
                 messages=historial
             )
 
+            tokens_input += response.usage.input_tokens
+            tokens_output += response.usage.output_tokens
+
             if response.stop_reason == "end_turn":
                 for block in response.content:
                     if hasattr(block, "text"):
                         historial.append({"role": "assistant", "content": response.content})
-                        # Compactar y recortar después de cada respuesta completa
                         compactar_historial(historial)
                         recortar_historial(historial)
-                        return {
+                        yield {
+                            "tipo": "respuesta",
                             "respuesta": block.text,
                             "archivos": archivos_leidos,
-                            "tools": tools_usadas
+                            "tools": tools_usadas,
+                            "tokens_input": tokens_input,
+                            "tokens_output": tokens_output
                         }
+                        return
 
             if response.stop_reason == "tool_use":
                 historial.append({"role": "assistant", "content": response.content})
                 tool_results = []
+
                 for block in response.content:
                     if block.type == "tool_use":
-                        tools_usadas.append(block.name)
-                        resultado = ejecutar_tool(block.name, block.input)
-                        if block.name not in ["ejecutar_comando"]:
-                            archivos_leidos.append(json.dumps(block.input, ensure_ascii=False))
+                        tool_name = block.name
+                        tool_input = block.input
+                        tools_usadas.append(tool_name)
+
+                        # Evento de progreso
+                        label = TOOL_LABELS.get(tool_name, tool_name)
+                        detalle = ""
+                        if tool_name == "buscar_codigo":
+                            detalle = f'"{tool_input.get("query", "")}"'
+                        elif tool_name == "leer_archivo":
+                            detalle = tool_input.get("path", "")
+                        elif tool_name == "listar_archivos":
+                            detalle = tool_input.get("extension", "")
+                        elif tool_name == "listar_carpetas":
+                            detalle = tool_input.get("path", "raiz")
+                        elif tool_name == "leer_multiples_archivos":
+                            detalle = f'{len(tool_input.get("paths", []))} archivos'
+
+                        yield {"tipo": "tool", "tool": tool_name, "label": label, "detalle": detalle}
+
+                        resultado = ejecutar_tool(tool_name, tool_input)
+
+                        # Evento de resultado
+                        resumen = ""
+                        try:
+                            parsed = json.loads(resultado)
+                            if isinstance(parsed, dict) and "total" in parsed:
+                                resumen = f"{parsed['total']} encontrados"
+                            elif isinstance(parsed, dict) and "archivos" in parsed:
+                                resumen = f"{len(parsed['archivos'])} archivos"
+                        except Exception:
+                            resumen = f"{len(resultado)} chars leidos"
+
+                        yield {"tipo": "tool_resultado", "tool": tool_name, "resumen": resumen}
+
+                        if tool_name not in ["ejecutar_comando"]:
+                            archivos_leidos.append(json.dumps(tool_input, ensure_ascii=False))
+
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
                             "content": resultado
                         })
+
                 historial.append({"role": "user", "content": tool_results})
 
     except anthropic.RateLimitError:
         historial.pop()
         compactar_historial(historial)
-        historial.clear()
-        return {"respuesta": "Se alcanzo el limite de tokens por minuto. El historial se limpio. Espera unos segundos y repite tu pregunta.", "archivos": [], "tools": []}
+        time.sleep(5)
+        try:
+            historial.append({"role": "user", "content": pregunta})
+            yield {"tipo": "pensando", "mensaje": "Reintentando..."}
+            response = client.messages.create(
+                model=MODEL, max_tokens=8192, system=SYSTEM_PROMPT,
+                tools=tools, messages=historial
+            )
+            for block in response.content:
+                if hasattr(block, "text"):
+                    historial.append({"role": "assistant", "content": response.content})
+                    compactar_historial(historial)
+                    recortar_historial(historial)
+                    yield {
+                        "tipo": "respuesta",
+                        "respuesta": block.text,
+                        "archivos": archivos_leidos,
+                        "tools": tools_usadas,
+                        "tokens_input": response.usage.input_tokens,
+                        "tokens_output": response.usage.output_tokens
+                    }
+                    return
+        except Exception:
+            historial.pop()
+            yield {"tipo": "respuesta", "respuesta": "El servicio esta saturado. Espera 30 segundos e intenta de nuevo.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
+
     except Exception as e:
         historial.pop()
-        return {"respuesta": f"Error: {e}", "archivos": [], "tools": []}
+        yield {"tipo": "respuesta", "respuesta": f"Error: {e}", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
