@@ -303,6 +303,7 @@
         <h2>Chat — Asistente de Codigo</h2>
         <div class="status"><span class="dot"></span> Conectado a GitHub · Claude API activo</div>
       </div>
+      <div id="tokenCounter" style="background:rgba(255,255,255,.15);padding:4px 10px;border-radius:12px;font-size:11px;color:white;font-family:ui-monospace,Menlo,Consolas,monospace;">Tokens: 0 · $0.00</div>
     </div>
 
     <div class="chat-body" id="chatBody">
@@ -325,10 +326,10 @@
     </div>
 
     <div class="suggestions">
-      <span class="chip" onclick="useSuggestion(this)">Que modulos tiene el sistema SICA?</span>
-      <span class="chip" onclick="useSuggestion(this)">Lista los archivos .4gl del modulo de retiros</span>
-      <span class="chip" onclick="useSuggestion(this)">Que stored procedures existen?</span>
-      <span class="chip" onclick="useSuggestion(this)">Lee el README.md</span>
+      <span class="chip" onclick="useSuggestion(this)">Que reglas de negocio tiene el CURP en el sistema?</span>
+      <span class="chip" onclick="useSuggestion(this)">Como funciona el proceso de retiro?</span>
+      <span class="chip" onclick="useSuggestion(this)">Que validaciones se hacen al dispersar pagos?</span>
+      <span class="chip" onclick="useSuggestion(this)">Que pasa cuando un trabajador solicita su credito?</span>
     </div>
 
     <form class="chat-input" onsubmit="return sendMessage(event)">
@@ -382,6 +383,25 @@
 </footer>
 
 <script>
+  let totalTokensInput = 0;
+  let totalTokensOutput = 0;
+
+  function actualizarContador(ti, to) {
+    totalTokensInput += ti;
+    totalTokensOutput += to;
+    const costoInput = (totalTokensInput / 1000000) * 3;
+    const costoOutput = (totalTokensOutput / 1000000) * 15;
+    const costoTotal = costoInput + costoOutput;
+    const total = totalTokensInput + totalTokensOutput;
+    const el = document.getElementById('tokenCounter');
+    el.textContent = `Tokens: ${total.toLocaleString()} · $${costoTotal.toFixed(4)}`;
+    if (costoTotal > 0.50) {
+      el.style.background = 'rgba(255,82,82,.4)';
+    } else if (costoTotal > 0.20) {
+      el.style.background = 'rgba(255,199,44,.3)';
+    }
+  }
+
   const $body = document.getElementById('chatBody');
   const $input = document.getElementById('userInput');
   const $btn = document.getElementById('btnSend');
@@ -556,10 +576,11 @@
             const hizoAnalisis = (data.tools || []).some(t => toolsCodigo.includes(t));
             const ti = data.tokens_input || 0;
             const to = data.tokens_output || 0;
+            actualizarContador(ti, to);
             appendMsg('bot', formatear(data.respuesta), {
               tools: data.tools || [],
               mostrarDocx: hizoAnalisis,
-              tokens: (ti + to) > 0 ? 'Tokens: ' + ti.toLocaleString() + ' entrada + ' + to.toLocaleString() + ' salida' : ''
+              tokens: (ti + to) > 0 ? 'Tokens: ' + ti.toLocaleString() + ' in + ' + to.toLocaleString() + ' out' : ''
             });
           }
         }
@@ -576,6 +597,10 @@
   async function nuevaConversacion() {
     await fetch('/nueva-sesion', { method: 'POST' });
     $body.innerHTML = '';
+    totalTokensInput = 0;
+    totalTokensOutput = 0;
+    document.getElementById('tokenCounter').textContent = 'Tokens: 0 · $0.00';
+    document.getElementById('tokenCounter').style.background = 'rgba(255,255,255,.15)';
     appendMsg('bot', 'Conversacion reiniciada. Preguntame lo que necesites sobre el codigo SICA.');
     $input.focus();
   }
