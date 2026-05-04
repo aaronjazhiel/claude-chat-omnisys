@@ -339,6 +339,31 @@ def consultar_stream(pregunta, session_id="default"):
                 break
         yield {"tipo": "respuesta", "respuesta": "No se pudo completar la consulta despues de 3 intentos. Tu plan de Anthropic tiene un limite de 30,000 tokens por minuto. Espera 1 minuto o inicia una nueva conversacion.", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
 
+    except anthropic.BadRequestError:
+        historial.clear()
+        historial.append({"role": "user", "content": pregunta})
+        try:
+            yield {"tipo": "pensando", "mensaje": "Historial corrupto, reintentando limpio..."}
+            response = client.messages.create(
+                model=MODEL, max_tokens=8192, system=SYSTEM_PROMPT,
+                tools=tools, messages=historial
+            )
+            for block in response.content:
+                if hasattr(block, "text"):
+                    historial.append({"role": "assistant", "content": response.content})
+                    yield {
+                        "tipo": "respuesta",
+                        "respuesta": block.text,
+                        "archivos": [],
+                        "tools": [],
+                        "tokens_input": response.usage.input_tokens,
+                        "tokens_output": response.usage.output_tokens
+                    }
+                    return
+        except Exception as e2:
+            historial.clear()
+            yield {"tipo": "respuesta", "respuesta": f"Error: {e2}", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
+
     except Exception as e:
         historial.pop()
         yield {"tipo": "respuesta", "respuesta": f"Error: {e}", "archivos": [], "tools": [], "tokens_input": 0, "tokens_output": 0}
