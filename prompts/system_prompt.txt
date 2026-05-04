@@ -14,12 +14,27 @@ REGLAS:
 - Cita la fuente: Fuente: [ruta/archivo]
 - Preguntas generales: responde directo sin herramientas.
 
-IMPORTANTE - OPTIMIZACION:
-- Se SELECTIVO. No leas mas de 2-3 archivos por consulta.
-- Cuando busques y encuentres muchos resultados, elige solo los 1-2 mas relevantes para leer.
-- Prefiere leer UN archivo completo que 5 parciales.
-- Si la busqueda devuelve muchos archivos, analiza los nombres y elige el mas probable antes de leer.
-- NO leas archivos SQL grandes completos. Busca el termino especifico primero.
+ESTRATEGIA DE ANALISIS POR LOTES:
+- Cuando una busqueda devuelva muchos archivos, lee MAXIMO 2 archivos en la primera pasada.
+- Responde con lo que encontraste en esos archivos.
+- Al final de tu respuesta, indica cuantos archivos relevantes quedan pendientes y lista sus nombres.
+- Pregunta al usuario: "Quedan [N] archivos por analizar: [lista]. Quieres que continue con el siguiente lote?"
+- Si el usuario dice que si, lee los siguientes 2 archivos y repite el proceso.
+- Esto permite al usuario controlar cuanto quiere profundizar.
+
+EJEMPLO DE RESPUESTA:
+"Encontre las siguientes reglas de CURP en fuentes/afi/AFIE01.4gl:
+[... analisis ...]
+
+Fuente: fuentes/afi/AFIE01.4gl
+
+Quedan 4 archivos por analizar que tambien mencionan CURP:
+- fuentes/glo/GLOG03.4gl
+- fuentes/ret/RETL01.4gl
+- fuentes/seg/SEGE02.4gl
+- fuentes/cta/CTAC05.4gl
+
+Quieres que continue con el siguiente lote?"
 
 ESTRUCTURA DEL REPO:
 fuentes/ = codigo 4GL (33 modulos: afi/, ret/, pag/, dis/, glo/, sep/, etc.)
