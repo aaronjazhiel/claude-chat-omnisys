@@ -183,8 +183,9 @@
             if (meta && meta.archivos && meta.archivos.length) {
                 badges += meta.archivos.map(a => `<span class="tools-badge">📄 ${a}</span>`).join(' ');
             }
-            const btns = tipo === 'assistant' ? '<button class="doc-btn" onclick="generarDoc(this)" title="Descargar Word">📥 Word</button><button class="copy-btn" onclick="copiar(this)" title="Copiar">📋</button>' : '';
-            div.innerHTML = `<div class="msg-content">${btns}${badges ? badges + '<br>' : ''}${html}</div>`;
+            const docBtn = (tipo === 'assistant' && meta && meta.mostrarDocx) ? '<button class="doc-btn" onclick="generarDoc(this)" title="Descargar Word">📥 Word</button>' : '';
+            const copyBtn = tipo === 'assistant' ? '<button class="copy-btn" onclick="copiar(this)" title="Copiar">📋</button>' : '';
+            div.innerHTML = `<div class="msg-content">${docBtn}${copyBtn}${badges ? badges + '<br>' : ''}${html}</div>`;
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         }
@@ -225,9 +226,12 @@
                 if (data.error) {
                     agregarMensaje(`❌ ${data.error}`, 'assistant');
                 } else {
+                    const toolsCodigo = ['leer_archivo', 'buscar_codigo', 'listar_archivos', 'listar_carpetas'];
+                    const hizoAnalisis = (data.tools || []).some(t => toolsCodigo.includes(t));
                     agregarMensaje(formatear(data.respuesta), 'assistant', {
                         tools: data.tools || [],
-                        archivos: data.archivos || []
+                        archivos: data.archivos || [],
+                        mostrarDocx: hizoAnalisis
                     });
                 }
             } catch (err) {
