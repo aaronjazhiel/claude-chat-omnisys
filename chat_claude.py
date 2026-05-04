@@ -176,19 +176,18 @@ def ejecutar_tool(name, inputs):
 
 
 sesiones = {}
-MAX_HISTORIAL = 20  # máximo de mensajes en historial
+MAX_HISTORIAL = 12
 
 
 def compactar_historial(historial):
-    """Reemplaza tool_results pesados con resúmenes cortos para ahorrar tokens."""
-    for i, msg in enumerate(historial):
+    """Reemplaza tool_results pesados con resumenes cortos para ahorrar tokens."""
+    for msg in historial:
         if msg["role"] == "user" and isinstance(msg["content"], list):
-            # Es un tool_result — compactar
-            for j, item in enumerate(msg["content"]):
+            for item in msg["content"]:
                 if isinstance(item, dict) and item.get("type") == "tool_result":
                     contenido = item.get("content", "")
-                    if len(contenido) > 500:
-                        item["content"] = contenido[:500] + f"\n... [compactado: {len(contenido)} chars originales]"
+                    if len(contenido) > 300:
+                        item["content"] = contenido[:300] + f"\n... [compactado: {len(contenido)} chars]"
 
 
 def recortar_historial(historial):
@@ -255,6 +254,17 @@ def consultar(pregunta, session_id="default"):
                         })
                 historial.append({"role": "user", "content": tool_results})
 
+    except anthropic.RateLimitError:
+        historial.pop()
+        # Compactar agresivamente e intentar de nuevo
+        compactar_historial(historial)
+        if len(historial) > 6:
+            recortado = historial[-6:]
+            while recortado and recortado[0]["role"] != "user":
+                recortado.pop(0)
+            historial.clear()
+            historial.extend(recortado)
+        return {"respuesta": "La conversacion acumulo mucho contexto. Se limpio el historial automaticamente. Por favor, repite tu pregunta.", "archivos": [], "tools": []}
     except Exception as e:
         historial.pop()
         return {"respuesta": f"Error: {e}", "archivos": [], "tools": []}
