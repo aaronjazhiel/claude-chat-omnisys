@@ -154,6 +154,12 @@
     color:var(--inf-gris-texto);transition:all .2s;
   }
   .bubble-btn:hover{background:var(--chat-primary);color:white;border-color:var(--chat-primary)}
+  .btn-continuar{
+    background:var(--inf-verde);border:1px solid var(--inf-verde);
+    border-radius:4px;padding:5px 12px;font-size:12px;cursor:pointer;
+    color:white;font-weight:600;transition:all .2s;
+  }
+  .btn-continuar:hover{background:#1B5E20}
   .tools-badge{
     display:inline-block;font-size:10px;background:#E3F2FD;
     color:var(--inf-azul-info);padding:2px 6px;border-radius:10px;margin-bottom:4px;margin-right:3px;
@@ -446,6 +452,9 @@
       if (meta && meta.mostrarDocx) {
         actions += '<button class="bubble-btn" onclick="generarDoc(this)">Descargar Word</button>';
       }
+      if (meta && meta.mostrarContinuar) {
+        actions += '<button class="btn-continuar" onclick="continuarAnalisis(this)">Continuar analisis</button>';
+      }
       actions += '</div>';
     }
     wrap.innerHTML = `
@@ -569,9 +578,12 @@
             const ti = data.tokens_input || 0;
             const to = data.tokens_output || 0;
             actualizarContador(ti, to);
-            appendMsg('bot', formatear(data.respuesta), {
+            const resp = data.respuesta || '';
+            const preguntaContinuar = resp.toLowerCase().includes('quieres que contin') || resp.toLowerCase().includes('continuar') || resp.toLowerCase().includes('siguiente lote');
+            appendMsg('bot', formatear(resp), {
               tools: data.tools || [],
               mostrarDocx: hizoAnalisis,
+              mostrarContinuar: preguntaContinuar,
               tokens: (ti + to) > 0 ? 'Tokens: ' + ti.toLocaleString() + ' in + ' + to.toLocaleString() + ' out' : ''
             });
           }
@@ -584,6 +596,13 @@
     $btn.disabled = false;
     $input.focus();
     return false;
+  }
+
+  function continuarAnalisis(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Continuando...';
+    $input.value = 'Si, continua con el siguiente lote';
+    sendMessage(new Event('submit'));
   }
 
   async function nuevaConversacion() {
