@@ -214,9 +214,13 @@ def consultar_stream(pregunta, session_id="default"):
     tokens_input = 0
     tokens_output = 0
 
+    first_thinking = True
+
     try:
         while True:
-            yield {"tipo": "pensando", "mensaje": "Analizando tu pregunta..."}
+            if first_thinking:
+                yield {"tipo": "pensando", "mensaje": "Analizando tu pregunta..."}
+                first_thinking = False
 
             response = client.messages.create(
                 model=MODEL,
