@@ -298,10 +298,9 @@ def consultar_stream(pregunta, session_id="default"):
                     if hasattr(block, "text"):
                         texto = block.text
                         # Filtrar respuestas parciales donde Claude dice que va a hacer algo sin dar info
-                        if len(texto) < 200 and any(x in texto.lower() for x in ["voy a", "ahora voy", "vamos a", "procedere", "voy a buscar", "voy a leer", "voy a analizar"]):
-                            # Forzar que responda con lo que tiene
+                        if any(x in texto.lower() for x in ["voy a", "ahora voy", "vamos a", "procedere", "voy a buscar", "voy a leer", "voy a analizar", "voy a empezar", "voy a revisar"]) and "regla" not in texto.lower() and "valida" not in texto.lower():
                             historial.append({"role": "assistant", "content": response.content})
-                            historial.append({"role": "user", "content": "Responde con la informacion que ya tienes. No digas que vas a hacer algo, da los resultados."})
+                            historial.append({"role": "user", "content": "No me digas que vas a hacer. Dame los resultados que ya encontraste. Analiza las lineas de codigo que ya tienes y explicame las reglas de negocio. Lista archivos pendientes y pregunta si quiero continuar."})
                             continue
                         historial.append({"role": "assistant", "content": response.content})
                         compactar_historial(historial)
