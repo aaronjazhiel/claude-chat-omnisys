@@ -452,9 +452,6 @@
       if (meta && meta.mostrarDocx) {
         actions += '<button class="bubble-btn" onclick="generarDoc(this)">Descargar Word</button>';
       }
-      if (meta && meta.mostrarContinuar) {
-        actions += '<button class="btn-continuar" onclick="continuarAnalisis(this)">Continuar analisis</button>';
-      }
       actions += '</div>';
     }
     wrap.innerHTML = `
@@ -579,11 +576,9 @@
             const to = data.tokens_output || 0;
             actualizarContador(ti, to);
             const resp = data.respuesta || '';
-            const preguntaContinuar = resp.toLowerCase().includes('quieres que contin') || resp.toLowerCase().includes('continuar') || resp.toLowerCase().includes('siguiente lote');
             appendMsg('bot', formatear(resp), {
               tools: data.tools || [],
               mostrarDocx: hizoAnalisis,
-              mostrarContinuar: preguntaContinuar,
               tokens: (ti + to) > 0 ? 'Tokens: ' + ti.toLocaleString() + ' in + ' + to.toLocaleString() + ' out' : ''
             });
           }
@@ -596,13 +591,6 @@
     $btn.disabled = false;
     $input.focus();
     return false;
-  }
-
-  function continuarAnalisis(btn) {
-    btn.disabled = true;
-    btn.textContent = 'Continuando...';
-    $input.value = 'Si, continua con el siguiente lote';
-    sendMessage(new Event('submit'));
   }
 
   async function nuevaConversacion() {

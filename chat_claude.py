@@ -124,17 +124,17 @@ def ejecutar_tool(name, inputs):
 
             total_archivos = len(archivos_dict)
 
-            # Tomar los 5 archivos con mas menciones
+            # Tomar los 10 archivos con mas menciones
             archivos_ordenados = sorted(archivos_dict.items(), key=lambda x: len(x[1]), reverse=True)
-            top_archivos = archivos_ordenados[:5]
-            pendientes = archivos_ordenados[5:]
+            top_archivos = archivos_ordenados[:10]
+            pendientes = archivos_ordenados[10:]
 
             resultado = f"TERMINO: {query}\nTOTAL ARCHIVOS: {total_archivos}\nTOTAL MENCIONES: {len(lineas)}\n\n"
-            resultado += "=== ARCHIVOS MAS RELEVANTES (top 5) ===\n\n"
+            resultado += "=== ARCHIVOS MAS RELEVANTES (top 10) ===\n\n"
 
             for filepath, menciones in top_archivos:
                 resultado += f"--- {filepath} ({len(menciones)} menciones) ---\n"
-                for m in menciones[:15]:  # max 15 lineas por archivo
+                for m in menciones[:20]:  # max 20 lineas por archivo
                     resultado += f"  {m}\n"
                 resultado += "\n"
 
