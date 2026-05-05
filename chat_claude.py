@@ -265,12 +265,19 @@ def consultar_stream(pregunta, session_id="default"):
             if response.stop_reason == "end_turn":
                 for block in response.content:
                     if hasattr(block, "text"):
+                        texto = block.text
+                        # Filtrar respuestas parciales donde Claude dice que va a hacer algo sin dar info
+                        if len(texto) < 200 and any(x in texto.lower() for x in ["voy a", "ahora voy", "vamos a", "procedere", "voy a buscar", "voy a leer", "voy a analizar"]):
+                            # Forzar que responda con lo que tiene
+                            historial.append({"role": "assistant", "content": response.content})
+                            historial.append({"role": "user", "content": "Responde con la informacion que ya tienes. No digas que vas a hacer algo, da los resultados."})
+                            continue
                         historial.append({"role": "assistant", "content": response.content})
                         compactar_historial(historial)
                         recortar_historial(historial)
                         yield {
                             "tipo": "respuesta",
-                            "respuesta": block.text,
+                            "respuesta": texto,
                             "archivos": archivos_leidos,
                             "tools": tools_usadas,
                             "tokens_input": tokens_input,
@@ -334,8 +341,8 @@ def consultar_stream(pregunta, session_id="default"):
     except anthropic.RateLimitError:
         historial.pop()
         compactar_historial(historial)
-        yield {"tipo": "pensando", "mensaje": "Esperando disponibilidad..."}
-        time.sleep(60)
+        yield {"tipo": "pensando", "mensaje": "Procesando, un momento..."}
+        time.sleep(30)
         historial.append({"role": "user", "content": pregunta})
         try:
             response = client.messages.create(
