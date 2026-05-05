@@ -99,11 +99,11 @@ def ejecutar_tool(name, inputs):
     try:
         if name == "analizar_termino":
             query = inputs["query"]
-            # Buscar archivos que contienen el termino
             r = subprocess.run(
-                ["grep", "-rn", "-i", "--include=*.4gl", "--include=*.sql", "--include=*.per",
+                ["grep", "-rn", "-i", "--binary-files=without-match",
+                 "--include=*.4gl", "--include=*.sql", "--include=*.per",
                  query, REPO_DIR],
-                capture_output=True, text=True, timeout=15
+                capture_output=True, text=True, timeout=15, errors="replace"
             )
             lineas = r.stdout.strip().split("\n")
             lineas = [l for l in lineas if l]
