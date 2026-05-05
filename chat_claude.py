@@ -241,6 +241,23 @@ def consultar_stream(pregunta, session_id="default"):
                     system=SYSTEM_PROMPT + "\n\nYa leiste suficiente codigo. RESPONDE AHORA con lo que encontraste. Lista los archivos pendientes y pregunta si el usuario quiere continuar.",
                     messages=historial
                 )
+                tokens_input += response.usage.input_tokens
+                tokens_output += response.usage.output_tokens
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        historial.append({"role": "assistant", "content": response.content})
+                        compactar_historial(historial)
+                        recortar_historial(historial)
+                        yield {
+                            "tipo": "respuesta",
+                            "respuesta": block.text,
+                            "archivos": archivos_leidos,
+                            "tools": tools_usadas,
+                            "tokens_input": tokens_input,
+                            "tokens_output": tokens_output
+                        }
+                        return
+                return
 
             tokens_input += response.usage.input_tokens
             tokens_output += response.usage.output_tokens
@@ -312,30 +329,7 @@ def consultar_stream(pregunta, session_id="default"):
                 historial.append({"role": "user", "content": tool_results})
                 tool_round += 1
 
-        # Si se acabaron las iteraciones, forzar respuesta final sin tools
-        yield {"tipo": "pensando", "mensaje": "Generando respuesta..."}
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=8192,
-            system=SYSTEM_PROMPT + "\n\nIMPORTANTE: Ya tienes suficiente informacion. Responde ahora con lo que encontraste y lista los archivos pendientes por analizar.",
-            messages=historial
-        )
-        tokens_input += response.usage.input_tokens
-        tokens_output += response.usage.output_tokens
-        for block in response.content:
-            if hasattr(block, "text"):
-                historial.append({"role": "assistant", "content": response.content})
-                compactar_historial(historial)
-                recortar_historial(historial)
-                yield {
-                    "tipo": "respuesta",
-                    "respuesta": block.text,
-                    "archivos": archivos_leidos,
-                    "tools": tools_usadas,
-                    "tokens_input": tokens_input,
-                    "tokens_output": tokens_output
-                }
-                return
+
 
     except anthropic.RateLimitError:
         historial.pop()
