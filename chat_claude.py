@@ -215,23 +215,32 @@ def consultar_stream(pregunta, session_id="default"):
     tokens_output = 0
 
     first_thinking = True
-    max_iteraciones = 3
-    iteracion = 0
+    max_tool_rounds = 2
+    tool_round = 0
 
     try:
-        while iteracion < max_iteraciones:
-            iteracion += 1
+        while True:
             if first_thinking:
                 yield {"tipo": "pensando", "mensaje": "Analizando tu pregunta..."}
                 first_thinking = False
 
-            response = client.messages.create(
-                model=MODEL,
-                max_tokens=8192,
-                system=SYSTEM_PROMPT,
-                tools=tools,
-                messages=historial
-            )
+            # Si ya hizo 2 rondas de tools, forzar respuesta sin tools
+            if tool_round < max_tool_rounds:
+                response = client.messages.create(
+                    model=MODEL,
+                    max_tokens=8192,
+                    system=SYSTEM_PROMPT,
+                    tools=tools,
+                    messages=historial
+                )
+            else:
+                yield {"tipo": "pensando", "mensaje": "Generando respuesta..."}
+                response = client.messages.create(
+                    model=MODEL,
+                    max_tokens=8192,
+                    system=SYSTEM_PROMPT + "\n\nYa leiste suficiente codigo. RESPONDE AHORA con lo que encontraste. Lista los archivos pendientes y pregunta si el usuario quiere continuar.",
+                    messages=historial
+                )
 
             tokens_input += response.usage.input_tokens
             tokens_output += response.usage.output_tokens
@@ -262,7 +271,6 @@ def consultar_stream(pregunta, session_id="default"):
                         tool_input = block.input
                         tools_usadas.append(tool_name)
 
-                        # Evento de progreso
                         label = TOOL_LABELS.get(tool_name, tool_name)
                         detalle = ""
                         if tool_name == "buscar_codigo":
@@ -280,7 +288,6 @@ def consultar_stream(pregunta, session_id="default"):
 
                         resultado = ejecutar_tool(tool_name, tool_input)
 
-                        # Evento de resultado
                         resumen = ""
                         try:
                             parsed = json.loads(resultado)
@@ -303,6 +310,32 @@ def consultar_stream(pregunta, session_id="default"):
                         })
 
                 historial.append({"role": "user", "content": tool_results})
+                tool_round += 1
+
+        # Si se acabaron las iteraciones, forzar respuesta final sin tools
+        yield {"tipo": "pensando", "mensaje": "Generando respuesta..."}
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=8192,
+            system=SYSTEM_PROMPT + "\n\nIMPORTANTE: Ya tienes suficiente informacion. Responde ahora con lo que encontraste y lista los archivos pendientes por analizar.",
+            messages=historial
+        )
+        tokens_input += response.usage.input_tokens
+        tokens_output += response.usage.output_tokens
+        for block in response.content:
+            if hasattr(block, "text"):
+                historial.append({"role": "assistant", "content": response.content})
+                compactar_historial(historial)
+                recortar_historial(historial)
+                yield {
+                    "tipo": "respuesta",
+                    "respuesta": block.text,
+                    "archivos": archivos_leidos,
+                    "tools": tools_usadas,
+                    "tokens_input": tokens_input,
+                    "tokens_output": tokens_output
+                }
+                return
 
     except anthropic.RateLimitError:
         historial.pop()
