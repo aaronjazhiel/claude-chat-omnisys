@@ -27,6 +27,15 @@ clonar_repo()
 
 tools = [
     {
+        "name": "analizar_termino",
+        "description": "Busca un termino en el codigo y devuelve las lineas relevantes de los archivos mas importantes. Hace busqueda + lectura de contexto en un solo paso. USAR ESTA TOOL PRIMERO para cualquier pregunta sobre el codigo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Termino a buscar (funcion, tabla, variable, CURP, NSS, etc.)"}},
+            "required": ["query"]
+        }
+    },
+    {
         "name": "ejecutar_comando",
         "description": "Ejecuta un comando del sistema (hora, fecha, calculos).",
         "input_schema": {
@@ -64,19 +73,8 @@ tools = [
         }
     },
     {
-        "name": "leer_multiples_archivos",
-        "description": "Lee varios archivos de una vez. Maximo 5.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "paths": {"type": "array", "items": {"type": "string"}, "description": "Rutas (max 5)", "maxItems": 5}
-            },
-            "required": ["paths"]
-        }
-    },
-    {
         "name": "buscar_codigo",
-        "description": "Busca un termino dentro del codigo fuente del repositorio SICA.",
+        "description": "Busca un termino y devuelve solo la lista de archivos donde aparece.",
         "input_schema": {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "Texto a buscar"}},
@@ -88,9 +86,9 @@ tools = [
 COMANDOS_PERMITIDOS = ["date", "TZ=", "echo", "cal", "whoami", "uname", "python3 -c"]
 
 TOOL_LABELS = {
+    "analizar_termino": "Analizando codigo",
     "buscar_codigo": "Buscando en el codigo",
     "leer_archivo": "Leyendo archivo",
-    "leer_multiples_archivos": "Leyendo multiples archivos",
     "listar_archivos": "Listando archivos",
     "listar_carpetas": "Explorando carpetas",
     "ejecutar_comando": "Ejecutando comando"
@@ -99,7 +97,55 @@ TOOL_LABELS = {
 
 def ejecutar_tool(name, inputs):
     try:
-        if name == "ejecutar_comando":
+        if name == "analizar_termino":
+            query = inputs["query"]
+            # Buscar archivos que contienen el termino
+            r = subprocess.run(
+                ["grep", "-rn", "-i", "--include=*.4gl", "--include=*.sql", "--include=*.per",
+                 query, REPO_DIR],
+                capture_output=True, text=True, timeout=15
+            )
+            lineas = r.stdout.strip().split("\n")
+            lineas = [l for l in lineas if l]
+
+            # Agrupar por archivo
+            archivos_dict = {}
+            for linea in lineas:
+                try:
+                    path_line = linea.split(":", 2)
+                    filepath = os.path.relpath(path_line[0], REPO_DIR)
+                    num_linea = path_line[1]
+                    contenido = path_line[2].strip() if len(path_line) > 2 else ""
+                    if filepath not in archivos_dict:
+                        archivos_dict[filepath] = []
+                    archivos_dict[filepath].append(f"L{num_linea}: {contenido}")
+                except Exception:
+                    continue
+
+            total_archivos = len(archivos_dict)
+
+            # Tomar los 5 archivos con mas menciones
+            archivos_ordenados = sorted(archivos_dict.items(), key=lambda x: len(x[1]), reverse=True)
+            top_archivos = archivos_ordenados[:5]
+            pendientes = archivos_ordenados[5:]
+
+            resultado = f"TERMINO: {query}\nTOTAL ARCHIVOS: {total_archivos}\nTOTAL MENCIONES: {len(lineas)}\n\n"
+            resultado += "=== ARCHIVOS MAS RELEVANTES (top 5) ===\n\n"
+
+            for filepath, menciones in top_archivos:
+                resultado += f"--- {filepath} ({len(menciones)} menciones) ---\n"
+                for m in menciones[:15]:  # max 15 lineas por archivo
+                    resultado += f"  {m}\n"
+                resultado += "\n"
+
+            if pendientes:
+                resultado += f"\n=== ARCHIVOS PENDIENTES ({len(pendientes)} mas) ===\n"
+                for filepath, menciones in pendientes[:20]:
+                    resultado += f"- {filepath} ({len(menciones)} menciones)\n"
+
+            return resultado[:30000]
+
+        elif name == "ejecutar_comando":
             cmd = inputs["comando"]
             if not any(cmd.startswith(c) for c in COMANDOS_PERMITIDOS):
                 return "Comando no permitido por seguridad."
@@ -139,21 +185,6 @@ def ejecutar_tool(name, inputs):
             if len(contenido) > 50000:
                 return contenido[:50000] + f"\n--- TRUNCADO: 50K de {len(contenido)} chars ---"
             return contenido
-
-        elif name == "leer_multiples_archivos":
-            paths = inputs["paths"][:5]
-            resultados = {}
-            for p in paths:
-                filepath = os.path.join(REPO_DIR, p)
-                if not os.path.isfile(filepath):
-                    resultados[p] = "Error: no encontrado"
-                    continue
-                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-                    contenido = f.read()
-                if len(contenido) > 20000:
-                    contenido = contenido[:20000] + f"\n--- TRUNCADO a 20K de {len(contenido)} ---"
-                resultados[p] = contenido
-            return json.dumps(resultados, ensure_ascii=False)
 
         elif name == "buscar_codigo":
             query = inputs["query"]
@@ -297,7 +328,9 @@ def consultar_stream(pregunta, session_id="default"):
 
                         label = TOOL_LABELS.get(tool_name, tool_name)
                         detalle = ""
-                        if tool_name == "buscar_codigo":
+                        if tool_name == "analizar_termino":
+                            detalle = f'"{tool_input.get("query", "")}"'
+                        elif tool_name == "buscar_codigo":
                             detalle = f'"{tool_input.get("query", "")}"'
                         elif tool_name == "leer_archivo":
                             detalle = tool_input.get("path", "")
@@ -305,8 +338,6 @@ def consultar_stream(pregunta, session_id="default"):
                             detalle = tool_input.get("extension", "")
                         elif tool_name == "listar_carpetas":
                             detalle = tool_input.get("path", "raiz")
-                        elif tool_name == "leer_multiples_archivos":
-                            detalle = f'{len(tool_input.get("paths", []))} archivos'
 
                         yield {"tipo": "tool", "tool": tool_name, "label": label, "detalle": detalle}
 
